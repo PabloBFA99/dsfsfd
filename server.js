@@ -5,10 +5,21 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  },
+  transports: ['websocket', 'polling']
+});
 
 // Servir archivos estáticos
 app.use(express.static('./'));
+
+// Ruta principal
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // Almacenar información de jugadores
 const players = {};
@@ -80,7 +91,7 @@ io.on('connection', (socket) => {
 });
 
 // Puerto y arranque del servidor
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3003;
 server.listen(PORT, () => {
   console.log(`Servidor iniciado en puerto ${PORT}`);
 }); 

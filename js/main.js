@@ -1,5 +1,21 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js';
 
+// Depuración - mostrar que el script se cargó correctamente
+console.log("Main.js cargado correctamente");
+document.getElementById('debugInfo').textContent = 'Script main.js cargado. Inicializando Three.js...';
+
+// Intentar cargar Three.js con manejo de errores
+try {
+    // Comprobar que THREE está disponible
+    if (!THREE) {
+        throw new Error("Three.js no está disponible");
+    }
+    document.getElementById('debugInfo').textContent = 'Three.js cargado. Iniciando juego...';
+} catch (error) {
+    console.error("Error al cargar Three.js:", error);
+    document.getElementById('debugInfo').textContent = 'Error al cargar Three.js: ' + error.message;
+}
+
 // Variables globales
 let scene, camera, renderer;
 let archer, ground;
@@ -63,27 +79,13 @@ const keys = {
     space: false
 };
 
-// Esperar a que el DOM esté cargado y añadir el evento al botón de inicio
+// Iniciar juego automáticamente cuando se carga la página
 document.addEventListener('DOMContentLoaded', function() {
-    const startButton = document.getElementById('startGame');
-    const playerNameInput = document.getElementById('playerName');
+    // Iniciar conexión con el servidor
+    setupMultiplayer();
     
-    startButton.addEventListener('click', function() {
-        // Obtener el nombre del jugador
-        if (playerNameInput.value.trim() !== '') {
-            playerName = playerNameInput.value.trim();
-        }
-        
-        // Ocultar elementos de inicio
-        startButton.style.display = 'none';
-        playerNameInput.style.display = 'none';
-        
-        // Iniciar conexión con el servidor
-        setupMultiplayer();
-        
-        // Iniciar juego
-        init();
-    });
+    // Iniciar juego
+    init();
 });
 
 // Configurar multijugador
@@ -236,6 +238,20 @@ function createArrowFromOtherPlayer(arrowInfo) {
     tip.position.y = ARROW_SIZE / 2 + ARROW_SIZE / 8;
     arrow.add(tip);
     
+    // Añadir plumas a la flecha (igual que en shootArrow)
+    const featherGeometry = new THREE.BoxGeometry(ARROW_SIZE / 5, ARROW_SIZE / 20, ARROW_SIZE / 5);
+    const featherMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+    
+    const feather1 = new THREE.Mesh(featherGeometry, featherMaterial);
+    feather1.position.y = -ARROW_SIZE / 2 + ARROW_SIZE / 10;
+    feather1.rotation.x = Math.PI / 4;
+    arrow.add(feather1);
+    
+    const feather2 = new THREE.Mesh(featherGeometry, featherMaterial);
+    feather2.position.y = -ARROW_SIZE / 2 + ARROW_SIZE / 10;
+    feather2.rotation.x = -Math.PI / 4;
+    arrow.add(feather2);
+    
     // Posición inicial de la flecha
     arrow.position.set(
         arrowInfo.position.x,
@@ -248,7 +264,7 @@ function createArrowFromOtherPlayer(arrowInfo) {
         arrowInfo.direction.x,
         arrowInfo.direction.y,
         arrowInfo.direction.z
-    );
+    ).normalize();
     
     // Rotar la flecha para que apunte en la dirección correcta
     arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
@@ -260,87 +276,103 @@ function createArrowFromOtherPlayer(arrowInfo) {
         direction: direction.clone().multiplyScalar(arrowInfo.power || 1),
         created: clock.getElapsedTime()
     });
-    
-    // Emitir evento de disparo al servidor
-    if (socket) {
-        socket.emit('arrowShot', {
-            position: {
-                x: arrow.position.x,
-                y: arrow.position.y,
-                z: arrow.position.z
-            },
-            direction: {
-                x: direction.x,
-                y: direction.y,
-                z: direction.z
-            },
-            power: arrowInfo.power || 1
-        });
-    }
 }
 
 // Inicialización
 function init() {
-    // Crear escena
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0A1020); // Cielo nocturno oscuro
-    
-    // Niebla para simular horizonte desértico (más tenue para la noche)
-    scene.fog = new THREE.FogExp2(0x0A1020, 0.004); // Niebla nocturna
-    
-    // Crear cámara
-    createCamera();
-    
-    // Crear renderizador
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-    
-    // Luces
-    // Luz ambiental nocturna (tenue)
-    const ambientLight = new THREE.AmbientLight(0x102030, 0.3);
-    scene.add(ambientLight);
-    
-    // Luz de la luna (direccional)
-    const moonLight = new THREE.DirectionalLight(0xCCDDFF, 0.6);
-    moonLight.position.set(0.5, 1, 0.5);
-    scene.add(moonLight);
-    
-    // Crear luna
-    createMoon();
-    
-    // Crear estrellas
-    createStars();
-    
-    // Crear suelo del desierto
-    createDesert();
-    
-    // Crear arquero detallado
-    createDetailedArcher();
-    
-    // Crear arco equipado (para primera persona)
-    createEquippedBow();
-    
-    // Eventos
-    window.addEventListener('resize', onWindowResize);
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    
-    // Asignar explícitamente el evento de click
-    document.addEventListener('click', function(event) {
-        shootArrow();
-    });
-    
-    // Iniciar animación
-    animate();
+    try {
+        console.log("Iniciando función init()");
+        document.getElementById('debugInfo').textContent = 'Inicializando componentes del juego...';
+        
+        // Crear escena
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0A1020); // Cielo nocturno oscuro
+        
+        console.log("Escena creada");
+        document.getElementById('debugInfo').textContent = 'Escena creada. Configurando cámara...';
+        
+        // Niebla para simular horizonte desértico (más tenue para la noche)
+        scene.fog = new THREE.FogExp2(0x0A1020, 0.004); // Niebla nocturna
+        
+        // Crear cámara
+        createCamera();
+        console.log("Cámara creada");
+        
+        // Crear renderizador
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+        console.log("Renderizador creado y añadido al DOM");
+        document.getElementById('debugInfo').textContent = 'Renderizador creado. Configurando luces...';
+        
+        // Luces
+        // Luz ambiental nocturna (tenue)
+        const ambientLight = new THREE.AmbientLight(0x102030, 0.3);
+        scene.add(ambientLight);
+        
+        // Luz de la luna (direccional)
+        const moonLight = new THREE.DirectionalLight(0xCCDDFF, 0.6);
+        moonLight.position.set(0.5, 1, 0.5);
+        scene.add(moonLight);
+        console.log("Luces creadas");
+        
+        document.getElementById('debugInfo').textContent = 'Luces añadidas. Creando elementos del juego...';
+        
+        // Crear luna
+        createMoon();
+        console.log("Luna creada");
+        
+        // Crear estrellas
+        createStars();
+        console.log("Estrellas creadas");
+        
+        // Crear suelo del desierto
+        createDesert();
+        console.log("Desierto creado");
+        
+        // Crear arquero detallado
+        createDetailedArcher();
+        console.log("Arquero creado");
+        
+        // Crear arco equipado (para primera persona)
+        createEquippedBow();
+        console.log("Arco creado");
+        
+        // Eventos
+        window.addEventListener('resize', onWindowResize);
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        
+        // Asignar explícitamente el evento de click
+        document.addEventListener('click', function(event) {
+            shootArrow();
+        });
+        console.log("Eventos registrados");
+        
+        document.getElementById('debugInfo').textContent = 'Juego inicializado. ¡Listo para jugar!';
+        
+        // Crear línea de apuntado
+        const aimLineGeometry = new THREE.BufferGeometry();
+        const aimLinePoints = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, AIM_LINE_LENGTH)];
+        aimLineGeometry.setFromPoints(aimLinePoints);
+        const aimLineMaterial = new THREE.LineBasicMaterial({ color: 0xFF0000 });
+        aimLine = new THREE.Line(aimLineGeometry, aimLineMaterial);
+        scene.add(aimLine);
+        console.log("Línea de apuntado creada");
+        
+        // Iniciar animación
+        animate();
+        console.log("Animación iniciada");
+    } catch (error) {
+        console.error("Error en init():", error);
+        document.getElementById('debugInfo').textContent = 'Error al inicializar el juego: ' + error.message;
+    }
 }
 
 // Crear la luna
 function createMoon() {
     const moonGeometry = new THREE.SphereGeometry(15, 32, 32);
-    const moonTexture = new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg');
     const moonMaterial = new THREE.MeshBasicMaterial({ 
-        map: moonTexture,
         color: 0xFFFFFF
     });
     const moon = new THREE.Mesh(moonGeometry, moonMaterial);
@@ -395,16 +427,12 @@ function createStars() {
 function createDesert() {
     // Crear suelo base (más liso)
     const groundGeometry = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE, 50, 50);
-    const groundTexture = new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/terrain/grasslight-big.jpg');
-    groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
-    groundTexture.repeat.set(25, 25);
-    groundTexture.colorSpace = THREE.SRGBColorSpace;
     
+    // Usar un color plano en lugar de una textura
     const groundMaterial = new THREE.MeshStandardMaterial({ 
         color: 0xAA8866, // Color arena nocturno
         roughness: 0.9,
-        metalness: 0.1,
-        map: groundTexture
+        metalness: 0.1
     });
     
     ground = new THREE.Mesh(groundGeometry, groundMaterial);
@@ -545,7 +573,12 @@ function createDetailedArcher() {
     const basicArcherMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
     archer = new THREE.Mesh(basicArcherGeometry, basicArcherMaterial);
     archer.position.y = ARCHER_SIZE / 2;
-    archer.rotation.x = Math.PI;
+    
+    // Asegurarse de que el arquero mire hacia adelante (hacia -Z)
+    archer.rotation.x = 0;
+    archer.rotation.y = 0;
+    archer.rotation.z = 0;
+    
     scene.add(archer);
     
     // Crear modelo detallado del arquero
@@ -710,7 +743,7 @@ function createArcherModel() {
     
     // Posicionar modelo
     archerModel.position.copy(archer.position);
-    archerModel.rotation.y = Math.PI; // Mirando al frente
+    archerModel.rotation.y = 0; // Mirando hacia el frente (-Z)
     
     // Añadir modelo a la escena
     scene.add(archerModel);
@@ -822,10 +855,14 @@ function updateAnimation(delta) {
         archerModel.position.x = archer.position.x;
         archerModel.position.z = archer.position.z;
         
-        // Asegurarse de que el modelo mire en la dirección del movimiento
+        // Sincronizar la rotación del modelo con el objeto archer
+        archerModel.rotation.y = archer.rotation.y;
+        
+        // Si está en movimiento, ajustar la rotación según la dirección
         if (isMoving && moveDirectionTemp && moveDirectionTemp.length() > 0) {
             const targetRotation = Math.atan2(moveDirectionTemp.x, moveDirectionTemp.z);
-            // Suavizar rotación
+            // Aplicar la misma rotación al objeto archer y al modelo
+            archer.rotation.y = targetRotation;
             archerModel.rotation.y = targetRotation;
         }
     }
@@ -899,6 +936,25 @@ function update() {
     
     if (rotateAmount !== 0) {
         archer.rotation.y += rotateAmount;
+        
+        // Asegurar que el modelo siga la rotación del archer
+        if (archerModel) {
+            archerModel.rotation.y = archer.rotation.y;
+        }
+        
+        // Actualizar la rotación en el servidor
+        if (socket) {
+            socket.emit('playerMovement', {
+                position: {
+                    x: archer.position.x,
+                    y: archer.position.y,
+                    z: archer.position.z
+                },
+                rotation: {
+                    y: archer.rotation.y
+                }
+            });
+        }
     }
     
     // Actualizar línea de apuntado
@@ -977,7 +1033,7 @@ function updateCamera() {
         lookAtPos.copy(archer.position).add(new THREE.Vector3(0, 1, 0)); // Mirar un poco más arriba del centro del personaje
         camera.lookAt(lookAtPos);
     } else {
-        // Vista en primera persona (código existente)
+        // Vista en primera persona
         camera.position.copy(archer.position);
         camera.position.y = CAMERA_HEIGHT;
         
@@ -1288,7 +1344,7 @@ function updateAimLine() {
     aimLine.position.y = 0.1; // Elevar ligeramente la línea para que sea visible
     
     // Obtener la dirección actual del arquero
-    const archerDirection = new THREE.Vector3(0, 0, 1).applyQuaternion(archer.quaternion);
+    const archerDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(archer.quaternion);
     
     // Crear puntos de la línea (origen y final)
     const startPoint = new THREE.Vector3(0, 0, 0);
@@ -1300,6 +1356,11 @@ function updateAimLine() {
     
     // Actualizar geometría de la línea
     aimLine.geometry.setFromPoints([startPoint, endPoint]);
+    
+    // Asegurar que en tercera persona, el modelo del arquero se alinee con la rotación del objeto archer
+    if (isThirdPerson && archerModel) {
+        archerModel.rotation.y = archer.rotation.y;
+    }
 }
 
 // Disparar flecha
@@ -1343,8 +1404,8 @@ function shootArrow() {
     feather2.rotation.x = -Math.PI / 4;
     arrow.add(feather2);
     
-    // Posición de disparo desde el arco del personaje en tercera persona
-    if (isThirdPerson && archerModel && archerModel.leftArm) {
+    // Posición de disparo desde el arco del personaje
+    if (isThirdPerson && archerModel && archerModel.bow) {
         // Obtener posición mundial del arco
         const bowWorldPos = new THREE.Vector3();
         archerModel.bow.getWorldPosition(bowWorldPos);
@@ -1357,16 +1418,26 @@ function shootArrow() {
     // Obtener dirección de disparo
     let direction;
     if (isThirdPerson) {
-        // Usar la dirección a la que mira el modelo
-        direction = new THREE.Vector3(0, 0, -1).applyQuaternion(archerModel.quaternion);
+        // En tercera persona, usar la dirección a la que mira el archer (no el modelo)
+        direction = new THREE.Vector3(0, 0, -1).applyQuaternion(archer.quaternion);
+        
+        // Sincronizar la rotación del modelo con el archer para evitar desajustes
+        if (archerModel) {
+            archerModel.rotation.y = archer.rotation.y;
+        }
     } else {
-        // Usar la dirección de la cámara (primera persona)
+        // En primera persona, usar la dirección de la cámara
         direction = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     }
     
     // Ajustar la altura para que apunte a la altura de los murciélagos
-    direction.y = 0; // Remover cualquier componente vertical para mantener la flecha horizontal
-    direction.normalize(); // Normalizar la dirección
+    // Mantener el componente Y original para permitir apuntar en altura
+    const originalY = direction.y;
+    direction.y = 0;
+    direction.normalize();
+    // Restaurar parcialmente el componente Y para permitir alguna elevación
+    direction.y = originalY * 0.5;
+    direction.normalize();
     
     // Ajustar altura de la flecha para que coincida con la de los murciélagos
     arrow.position.y = BAT_SIZE;
